@@ -19,22 +19,26 @@ import type { JobPostDraft, SkillTag, WorkArrangement } from "@/types/job-post-d
 import { Search, Star, X } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import CollapsibleSection from "./CollapsibleSection";
+import {
+  EMPLOYMENT_OPTIONS,
+  SALARY_FREQUENCY_OPTIONS,
+  SENIORITY_OPTIONS,
+} from "./job-post-constants";
 import SkillSearchInput from "./SkillSearchInput";
 import SimpleRichTextField from "./SimpleRichTextField";
 
 type JobPostFormPanelProps = {
   draft: JobPostDraft;
   onChange: (next: JobPostDraft) => void;
+  /** Yup step-1 validation messages keyed by field name */
+  fieldErrors?: Partial<Record<string, string>>;
 };
 
-const seniorityOptions = ["Intern", "Junior", "Mid-level", "Senior", "Lead", "Principal"];
-const employmentOptions = ["Full-time", "Part-time", "Contract", "Internship"];
 const currencyOptions = [
   { value: "INR", label: "₹ INR" },
   { value: "USD", label: "$ USD" },
   { value: "EUR", label: "€ EUR" },
 ];
-const frequencyOptions = ["Yearly", "Monthly", "Hourly"];
 
 const labelBrand = "text-brand-700 dark:text-brand-400";
 /** Multi-line label: column stack, left-aligned (MUI Stack–like), overrides shadcn Label’s row flex. */
@@ -46,7 +50,12 @@ const labelCompound = cn(
 /** Same height for label area in 2-col rows so inputs line up when only one field has helper text. */
 const labelBand = "flex min-h-[3.75rem] flex-col justify-start sm:min-h-[4rem]";
 
-export default function JobPostFormPanel({ draft, onChange }: JobPostFormPanelProps) {
+export default function JobPostFormPanel({
+  draft,
+  onChange,
+  fieldErrors,
+}: JobPostFormPanelProps) {
+  const fe = fieldErrors ?? {};
   const [cityDraft, setCityDraft] = useState("");
 
   const lpaSummary = useMemo(
@@ -112,8 +121,12 @@ export default function JobPostFormPanel({ draft, onChange }: JobPostFormPanelPr
               value={draft.jobTitle}
               placeholder="&quot;Engineer (Platforms)&quot;,  &quot;Analyst - Payments&quot;,  &quot;Marketer L7&quot;"
               onChange={(e) => patch({ jobTitle: e.target.value })}
-              className={inputFull}
+              className={cn(inputFull, fe.jobTitle && "border-destructive")}
+              aria-invalid={!!fe.jobTitle}
             />
+            {fe.jobTitle ? (
+              <p className="text-xs text-destructive">{fe.jobTitle}</p>
+            ) : null}
           </div>
 
           <div className="grid min-w-0 gap-4 sm:grid-cols-2">
@@ -131,7 +144,8 @@ export default function JobPostFormPanel({ draft, onChange }: JobPostFormPanelPr
                   value={draft.role}
                   placeholder="&quot;Engineer&quot;,  &quot;Analyst&quot;, &quot;Marketer&quot;"
                   onChange={(e) => patch({ role: e.target.value })}
-                  className={cn(inputFull, "pr-10")}
+                  className={cn(inputFull, "pr-10", fe.role && "border-destructive")}
+                  aria-invalid={!!fe.role}
                 />
                 {draft.role ? (
                   <Button
@@ -160,17 +174,23 @@ export default function JobPostFormPanel({ draft, onChange }: JobPostFormPanelPr
                 value={draft.seniority}
                 onValueChange={(v) => patch({ seniority: v })}
               >
-                <SelectTrigger className={inputFull}>
+                <SelectTrigger
+                  className={cn(inputFull, fe.seniority && "border-destructive")}
+                  aria-invalid={!!fe.seniority}
+                >
                   <SelectValue placeholder="Select seniority" />
                 </SelectTrigger>
                 <SelectContent>
-                  {seniorityOptions.map((o) => (
+                  {SENIORITY_OPTIONS.map((o) => (
                     <SelectItem key={o} value={o}>
                       {o}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {fe.seniority ? (
+                <p className="text-xs text-destructive">{fe.seniority}</p>
+              ) : null}
             </div>
           </div>
 
@@ -188,7 +208,8 @@ export default function JobPostFormPanel({ draft, onChange }: JobPostFormPanelPr
                   value={draft.experienceMin}
                   onChange={(e) => patch({ experienceMin: e.target.value })}
                   placeholder="Min"
-                  className="h-11 w-20"
+                  className={cn("h-11 w-20", fe.experienceMin && "border-destructive")}
+                  aria-invalid={!!fe.experienceMin}
                 />
                 <span className="text-sm text-muted-foreground">to</span>
                 <Input
@@ -197,10 +218,16 @@ export default function JobPostFormPanel({ draft, onChange }: JobPostFormPanelPr
                   value={draft.experienceMax}
                   onChange={(e) => patch({ experienceMax: e.target.value })}
                   placeholder="Max"
-                  className="h-11 w-20"
+                  className={cn("h-11 w-20", fe.experienceMax && "border-destructive")}
+                  aria-invalid={!!fe.experienceMax}
                 />
                 <span className="text-sm text-muted-foreground">years</span>
               </div>
+              {fe.experienceMin || fe.experienceMax ? (
+                <p className="text-xs text-destructive">
+                  {fe.experienceMin ?? fe.experienceMax}
+                </p>
+              ) : null}
             </div>
             <div className="space-y-2">
               <Label className={labelBrand}>
@@ -210,17 +237,23 @@ export default function JobPostFormPanel({ draft, onChange }: JobPostFormPanelPr
                 value={draft.employmentType}
                 onValueChange={(v) => patch({ employmentType: v })}
               >
-                <SelectTrigger className={inputFull}>
+                <SelectTrigger
+                  className={cn(inputFull, fe.employmentType && "border-destructive")}
+                  aria-invalid={!!fe.employmentType}
+                >
                   <SelectValue placeholder="Select type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {employmentOptions.map((o) => (
+                  {EMPLOYMENT_OPTIONS.map((o) => (
                     <SelectItem key={o} value={o}>
                       {o}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {fe.employmentType ? (
+                <p className="text-xs text-destructive">{fe.employmentType}</p>
+              ) : null}
             </div>
           </div>
         </div>
@@ -237,17 +270,26 @@ export default function JobPostFormPanel({ draft, onChange }: JobPostFormPanelPr
               value={draft.salaryFrequency}
               onValueChange={(v) => patch({ salaryFrequency: v })}
             >
-              <SelectTrigger className="h-11 w-[min(100%,120px)]">
+              <SelectTrigger
+                className={cn(
+                  "h-11 w-[min(100%,120px)]",
+                  fe.salaryFrequency && "border-destructive",
+                )}
+                aria-invalid={!!fe.salaryFrequency}
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {frequencyOptions.map((o) => (
+                {SALARY_FREQUENCY_OPTIONS.map((o) => (
                   <SelectItem key={o} value={o}>
                     {o}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {fe.salaryFrequency ? (
+              <p className="text-xs text-destructive">{fe.salaryFrequency}</p>
+            ) : null}
           </div>
 
           <div className="flex flex-wrap items-end gap-2">
@@ -272,7 +314,8 @@ export default function JobPostFormPanel({ draft, onChange }: JobPostFormPanelPr
               value={draft.salaryMin}
               placeholder="Min"
               onChange={(e) => patch({ salaryMin: e.target.value })}
-              className="h-11 min-w-[120px] flex-1"
+              className={cn("h-11 min-w-[120px] flex-1", fe.salaryMin && "border-destructive")}
+              aria-invalid={!!fe.salaryMin}
             />
             <Input
               type="text"
@@ -280,7 +323,8 @@ export default function JobPostFormPanel({ draft, onChange }: JobPostFormPanelPr
               value={draft.salaryMax}
               placeholder="Max"
               onChange={(e) => patch({ salaryMax: e.target.value })}
-              className="h-11 min-w-[120px] flex-1"
+              className={cn("h-11 min-w-[120px] flex-1", fe.salaryMax && "border-destructive")}
+              aria-invalid={!!fe.salaryMax}
             />
             <Button
               type="button"
@@ -292,6 +336,9 @@ export default function JobPostFormPanel({ draft, onChange }: JobPostFormPanelPr
             </Button>
           </div>
          {(draft.salaryMin && draft.salaryMax) && <p className="text-sm font-medium text-foreground">{lpaSummary}</p>}
+          {(fe.salaryMin || fe.salaryMax) && (
+            <p className="text-xs text-destructive">{fe.salaryMin ?? fe.salaryMax}</p>
+          )}
           <p className="text-xs text-muted-foreground">
             Salary range helps candidates filter roles. Required for better sourcing quality.
           </p>
@@ -305,7 +352,8 @@ export default function JobPostFormPanel({ draft, onChange }: JobPostFormPanelPr
             <RadioGroup
               value={draft.workArrangement}
               onValueChange={(v) => patch({ workArrangement: v as WorkArrangement })}
-              className="flex flex-wrap gap-4"
+              className={cn("flex flex-wrap gap-4", fe.workArrangement && "rounded-md ring-1 ring-destructive")}
+              aria-invalid={!!fe.workArrangement}
             >
               {(
                 [
@@ -322,6 +370,9 @@ export default function JobPostFormPanel({ draft, onChange }: JobPostFormPanelPr
                 </div>
               ))}
             </RadioGroup>
+            {fe.workArrangement ? (
+              <p className="text-xs text-destructive">{fe.workArrangement}</p>
+            ) : null}
           </div>
 
           {draft.workArrangement === "hybrid" ? (
@@ -373,9 +424,13 @@ export default function JobPostFormPanel({ draft, onChange }: JobPostFormPanelPr
                     onChange={(e) => setCityDraft(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addLocation())}
                     placeholder="Add city..."
-                    className={cn(inputFull, "pl-10")}
+                    className={cn(inputFull, "pl-10", fe.locations && "border-destructive")}
+                    aria-invalid={!!fe.locations}
                   />
                 </div>
+                {fe.locations ? (
+                  <p className="text-xs text-destructive">{fe.locations}</p>
+                ) : null}
               </div>
             </div>
           ) : null}
@@ -390,6 +445,7 @@ export default function JobPostFormPanel({ draft, onChange }: JobPostFormPanelPr
             value={draft.jobSummary}
             onChange={(v) => patch({ jobSummary: v })}
             rows={5}
+            error={fe.jobSummary}
           />
           <SimpleRichTextField
             label="Responsibilities"
@@ -415,8 +471,11 @@ export default function JobPostFormPanel({ draft, onChange }: JobPostFormPanelPr
             <SkillSearchInput
               existingNames={draft.skills.map((s) => s.name)}
               onSelectSkill={addSkill}
-              inputClassName={inputFull}
+              inputClassName={cn(inputFull, fe.skills && "border-destructive")}
             />
+            {fe.skills ? (
+              <p className="text-xs text-destructive">{fe.skills}</p>
+            ) : null}
             <p className="text-xs text-muted-foreground">
               Click the star icon to mark the skill as mandatory. Else, it is good-to-have.
             </p>
@@ -552,8 +611,12 @@ export default function JobPostFormPanel({ draft, onChange }: JobPostFormPanelPr
               placeholder="https://maps.google.com/..."
               value={draft.mapsUrl}
               onChange={(e) => patch({ mapsUrl: e.target.value })}
-              className={inputFull}
+              className={cn(inputFull, fe.mapsUrl && "border-destructive")}
+              aria-invalid={!!fe.mapsUrl}
             />
+            {fe.mapsUrl ? (
+              <p className="text-xs text-destructive">{fe.mapsUrl}</p>
+            ) : null}
           </div>
         </div>
       </CollapsibleSection>

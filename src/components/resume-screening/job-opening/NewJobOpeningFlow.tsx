@@ -1,43 +1,65 @@
 "use client";
 
 import PageContentLayout from "@/components/common/PageContentLayout";
+import { parseJobDescriptionPdf } from "@/features/job-opening/api/parse-jd";
+import { jdExtractionToJobPostDraft } from "@/features/job-opening/utils/jd-extraction-to-draft";
+import { ApiError } from "@/lib/api/client";
+import { useAuthStore } from "@/stores/auth-store";
 import type { JobPostDraft } from "@/types/job-post-draft";
 import React, { useCallback, useState } from "react";
 import JobDescriptionUpload from "../JobDescriptionUpload";
 import JdExtractionLoader from "./JdExtractionLoader";
 import JobOpeningWizard from "./JobOpeningWizard";
-import { getMockExtractedJobPost } from "./mockJobPostData";
+import { getEmptyJobPostDraft, getMockExtractedJobPost } from "./mockJobPostData";
 
 type Phase = "upload" | "loading" | "wizard";
 
-/** Simulated extraction delay before showing the editor (replace with real API). */
-const MOCK_EXTRACTION_MS = 2200;
-
 export default function NewJobOpeningFlow() {
   const [phase, setPhase] = useState<Phase>("upload");
-  const [draft, setDraft] = useState<JobPostDraft>(() => getMockExtractedJobPost());
+  const [draft, setDraft] = useState<JobPostDraft>(() => getEmptyJobPostDraft());
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
-  const runExtraction = useCallback(() => {
+  const handleFileAccepted = useCallback(async (file: File) => {
+    setUploadError(null);
     setPhase("loading");
-    window.setTimeout(() => {
-      setDraft(getMockExtractedJobPost());
+    const token = useAuthStore.getState().token;
+    if (!token) {
+      setUploadError("Please sign in to parse a job description.");
+      setPhase("upload");
+      return;
+    }
+    try {
+      const data = await parseJobDescriptionPdf(file, token);
+      setDraft(jdExtractionToJobPostDraft(data));
       setPhase("wizard");
-    }, MOCK_EXTRACTION_MS);
+    } catch (e) {
+      const msg =
+        e instanceof ApiError
+          ? e.message
+          : "Could not parse this PDF. Try another file or start from scratch.";
+      setUploadError(msg);
+      setPhase("upload");
+    }
   }, []);
 
-  const handleFileAccepted = useCallback(() => {
-    runExtraction();
-  }, [runExtraction]);
-
   const handleStartFromScratch = useCallback(() => {
+    setDraft(getEmptyJobPostDraft());
+    setUploadError(null);
+    setPhase("wizard");
+  }, []);
+
+  const handleStartFromSample = useCallback(() => {
     setDraft(getMockExtractedJobPost());
+    setUploadError(null);
     setPhase("wizard");
   }, []);
 
   if (phase === "wizard") {
     return (
       <div className="w-full">
-        <h1 className="mb-5 text-xl font-semibold text-gray-900 dark:text-white">New job opening</h1>
+        <h1 className="mb-5 text-xl font-semibold text-gray-900 dark:text-white">
+          New job opening
+        </h1>
         <JobOpeningWizard draft={draft} onChange={setDraft} />
       </div>
     );
@@ -56,11 +78,21 @@ export default function NewJobOpeningFlow() {
       {phase === "loading" ? (
         <JdExtractionLoader />
       ) : (
-        <JobDescriptionUpload
-          onFileAccepted={handleFileAccepted}
-          onStartFromScratch={handleStartFromScratch}
-          onStartFromSample={handleStartFromScratch}
-        />
+        <div className="flex w-full flex-col items-center">
+          {uploadError ? (
+            <div
+              className="mb-4 w-full max-w-lg rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-center text-sm text-destructive dark:bg-destructive/20"
+              role="alert"
+            >
+              {uploadError}
+            </div>
+          ) : null}
+          <JobDescriptionUpload
+            onFileAccepted={handleFileAccepted}
+            onStartFromScratch={handleStartFromScratch}
+            onStartFromSample={handleStartFromSample}
+          />
+        </div>
       )}
     </PageContentLayout>
   );

@@ -16,6 +16,7 @@ type SimpleRichTextFieldProps = {
   onChange: (value: string) => void;
   rows?: number;
   required?: boolean;
+  error?: string;
 };
 
 export default function SimpleRichTextField({
@@ -24,6 +25,7 @@ export default function SimpleRichTextField({
   onChange,
   rows = 6,
   required,
+  error,
 }: SimpleRichTextFieldProps) {
   const minHeightRem = Math.max(8, rows * 1.25);
 
@@ -84,7 +86,12 @@ export default function SimpleRichTextField({
         {label}
         {required ? <span className="text-destructive"> *</span> : null}
       </div>
-      <Card className="overflow-hidden py-0 gap-0">
+      <Card
+        className={cn(
+          "overflow-hidden py-0 gap-0",
+          error && "ring-2 ring-destructive",
+        )}
+      >
         <div className="flex flex-wrap gap-1 border-b border-border bg-muted/50 px-2 py-1.5">
           <Button
             type="button"
@@ -163,6 +170,7 @@ export default function SimpleRichTextField({
           />
         </CardContent>
       </Card>
+      {error ? <p className="text-xs text-destructive">{error}</p> : null}
     </div>
   );
 }

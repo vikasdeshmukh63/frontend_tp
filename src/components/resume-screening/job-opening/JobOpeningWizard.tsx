@@ -4,6 +4,10 @@ import { Button } from "@/components/ui/button";
 import type { JobPostDraft } from "@/types/job-post-draft";
 import Link from "next/link";
 import React, { useState } from "react";
+import {
+  validateJobPostStep1,
+  type JobPostStep1FieldErrors,
+} from "./job-post-step1-validation";
 import JobPostFormPanel from "./JobPostFormPanel";
 import JobPostLivePreview from "./JobPostLivePreview";
 
@@ -20,6 +24,50 @@ type JobOpeningWizardProps = {
 
 export default function JobOpeningWizard({ draft, onChange }: JobOpeningWizardProps) {
   const [step, setStep] = useState(1);
+  /** Steps 2–3 stay locked until step 1 passes validation via Next. */
+  const [step1Completed, setStep1Completed] = useState(false);
+  const [step1Error, setStep1Error] = useState<string | null>(null);
+  const [step1FieldErrors, setStep1FieldErrors] = useState<JobPostStep1FieldErrors>(
+    {},
+  );
+
+  const handleDraftChange = (next: JobPostDraft) => {
+    onChange(next);
+    setStep1FieldErrors({});
+    setStep1Error(null);
+  };
+
+  const goToStep = (id: number) => {
+    if (id >= 2 && !step1Completed) return;
+    setStep1Error(null);
+    setStep1FieldErrors({});
+    setStep(id);
+  };
+
+  const handleNext = () => {
+    setStep1Error(null);
+    if (step === 1) {
+      const result = validateJobPostStep1(draft);
+      if (!result.ok) {
+        setStep1FieldErrors(result.fieldErrors);
+        const vals = Object.values(result.fieldErrors);
+        setStep1Error(
+          vals.length > 1
+            ? vals.join(" · ")
+            : result.message ?? "Complete the required fields to continue.",
+        );
+        return;
+      }
+      setStep1FieldErrors({});
+      setStep1Completed(true);
+      setStep(2);
+      return;
+    }
+    if (step === 2) {
+      setStep(3);
+      return;
+    }
+  };
 
   return (
     <div className="flex min-h-[calc(100vh-7rem)] flex-col gap-0">
@@ -30,15 +78,25 @@ export default function JobOpeningWizard({ draft, onChange }: JobOpeningWizardPr
               {STEPS.map((s) => {
                 const active = step === s.id;
                 const done = step > s.id;
+                const locked = s.id >= 2 && !step1Completed;
                 return (
                   <li key={s.id} className="min-w-0 flex-1 sm:flex-initial sm:max-w-[220px]">
                     <button
                       type="button"
-                      onClick={() => setStep(s.id)}
+                      disabled={locked}
+                      aria-disabled={locked}
+                      title={
+                        locked
+                          ? "Complete and continue from step 1 to unlock this step"
+                          : undefined
+                      }
+                      onClick={() => goToStep(s.id)}
                       className={`w-full text-left transition ${
-                        active
-                          ? "text-brand-600 dark:text-brand-400"
-                          : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                        locked
+                          ? "cursor-not-allowed text-gray-400 opacity-60 dark:text-gray-600"
+                          : active
+                            ? "text-brand-600 dark:text-brand-400"
+                            : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                       }`}
                     >
                       <div className="flex items-start gap-2">
@@ -48,7 +106,9 @@ export default function JobOpeningWizard({ draft, onChange }: JobOpeningWizardPr
                               ? "bg-brand-500 text-white ring-2 ring-brand-500 ring-offset-2 ring-offset-white dark:ring-brand-400 dark:ring-offset-gray-900"
                               : done
                                 ? "bg-brand-100 text-brand-800 dark:bg-brand-500/20 dark:text-brand-200"
-                                : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                                : locked
+                                  ? "bg-gray-200 text-gray-400 dark:bg-gray-800 dark:text-gray-500"
+                                  : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
                           }`}
                         >
                           {s.id}
@@ -81,7 +141,7 @@ export default function JobOpeningWizard({ draft, onChange }: JobOpeningWizardPr
             <Button
               type="button"
               disabled={step >= 3}
-              onClick={() => setStep((s) => Math.min(3, s + 1))}
+              onClick={handleNext}
               className="bg-brand-500 hover:bg-brand-600 dark:bg-brand-500 dark:hover:bg-brand-600"
             >
               {step >= 3 ? "Finish" : "Next"}
@@ -91,10 +151,23 @@ export default function JobOpeningWizard({ draft, onChange }: JobOpeningWizardPr
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col pt-5">
+        {step1Error && step === 1 ? (
+          <div
+            className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive dark:bg-destructive/20"
+            role="alert"
+          >
+            {step1Error}
+          </div>
+        ) : null}
+
         {step === 1 ? (
           <div className="grid min-h-0 flex-1 grid-cols-1 gap-5 overflow-hidden lg:grid-cols-2 lg:gap-8">
             <div className="min-h-0 overflow-y-auto rounded-xl border border-gray-100 bg-gray-50/50 p-1 dark:border-gray-800 dark:bg-white/[0.02]">
-              <JobPostFormPanel draft={draft} onChange={onChange} />
+              <JobPostFormPanel
+                draft={draft}
+                onChange={handleDraftChange}
+                fieldErrors={step1FieldErrors}
+              />
             </div>
             <div className="min-h-0 overflow-y-auto rounded-xl border border-gray-100 bg-gray-50/50 p-1 dark:border-gray-800 dark:bg-white/[0.02]">
               <JobPostLivePreview draft={draft} />

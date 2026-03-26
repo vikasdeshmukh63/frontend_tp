@@ -1,5 +1,36 @@
 import type { JobPostDraft } from "@/types/job-post-draft";
 
+/** Empty draft for “start from scratch” (user fills step 1 manually). */
+export function getEmptyJobPostDraft(): JobPostDraft {
+  return {
+    jobTitle: "",
+    role: "",
+    seniority: "",
+    experienceMin: "",
+    experienceMax: "",
+    employmentType: "",
+    salaryCurrency: "INR",
+    salaryMin: "",
+    salaryMax: "",
+    salaryFrequency: "Yearly",
+    workArrangement: "hybrid",
+    hybridPolicy: "",
+    locations: [],
+    jobSummary: "",
+    responsibilities: "",
+    perks: "",
+    skills: [],
+    minEducation: "",
+    courseSpecialization: "",
+    additionalRequirements: "",
+    status: "Draft",
+    applicationDeadline: "",
+    employmentStartDate: "",
+    keyCallout: "",
+    mapsUrl: "",
+  };
+}
+
 /** Prefilled values simulating AI extraction from a JD (replace with API later). */
 export function getMockExtractedJobPost(): JobPostDraft {
   return {
