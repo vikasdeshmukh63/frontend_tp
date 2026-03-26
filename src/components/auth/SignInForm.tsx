@@ -1,26 +1,44 @@
 "use client";
+
 import Checkbox from "@/components/form/input/Checkbox";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
-import { useAuth } from "@/context/AuthContext";
+import { signInSchema, type SignInFormValues } from "@/features/auth/schemas/auth.schemas";
+import { useLoginMutation } from "@/features/auth/hooks/use-auth-hooks";
+import { ApiError } from "@/lib/api/client";
+import { yupResolver } from "@hookform/resolvers/yup";
 import { EyeCloseIcon, EyeIcon } from "@/icons";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import React, { useState } from "react";
+import { useForm } from "react-hook-form";
 
 export default function SignInForm() {
-  const { login } = useAuth();
-  const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
+  const loginMutation = useLoginMutation();
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    login();
-    router.push("/");
-    router.refresh();
-  }
+  const {
+    register,
+    handleSubmit,
+    setError,
+    formState: { errors },
+  } = useForm<SignInFormValues>({
+    resolver: yupResolver(signInSchema),
+    defaultValues: { email: "", password: "" },
+  });
+
+  const onSubmit = (data: SignInFormValues) => {
+    loginMutation.mutate(data, {
+      onError: (err) => {
+        if (err instanceof ApiError) {
+          setError("root", { message: err.message });
+        } else {
+          setError("root", { message: "Something went wrong. Try again." });
+        }
+      },
+    });
+  };
 
   return (
     <div className="flex flex-col flex-1 lg:w-1/2 w-full">
@@ -36,7 +54,10 @@ export default function SignInForm() {
           </div>
           <div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-5">
-              <button className="inline-flex items-center justify-center gap-3 py-3 text-sm font-normal text-gray-700 transition-colors bg-gray-100 rounded-lg px-7 hover:bg-gray-200 hover:text-gray-800 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10">
+              <button
+                type="button"
+                className="inline-flex items-center justify-center gap-3 py-3 text-sm font-normal text-gray-700 transition-colors bg-gray-100 rounded-lg px-7 hover:bg-gray-200 hover:text-gray-800 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10"
+              >
                 <svg
                   width="20"
                   height="20"
@@ -63,7 +84,10 @@ export default function SignInForm() {
                 </svg>
                 Sign in with Google
               </button>
-              <button className="inline-flex items-center justify-center gap-3 py-3 text-sm font-normal text-gray-700 transition-colors bg-gray-100 rounded-lg px-7 hover:bg-gray-200 hover:text-gray-800 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10">
+              <button
+                type="button"
+                className="inline-flex items-center justify-center gap-3 py-3 text-sm font-normal text-gray-700 transition-colors bg-gray-100 rounded-lg px-7 hover:bg-gray-200 hover:text-gray-800 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10"
+              >
                 <svg
                   width="21"
                   className="fill-current"
@@ -87,13 +111,29 @@ export default function SignInForm() {
                 </span>
               </div>
             </div>
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={handleSubmit(onSubmit)} noValidate>
               <div className="space-y-6">
+                {errors.root && (
+                  <p className="text-sm text-error-500" role="alert">
+                    {errors.root.message}
+                  </p>
+                )}
                 <div>
                   <Label>
                     Email <span className="text-error-500">*</span>{" "}
                   </Label>
-                  <Input placeholder="info@gmail.com" type="email" />
+                  <Input
+                    type="email"
+                    autoComplete="email"
+                    placeholder="info@gmail.com"
+                    error={!!errors.email}
+                    {...register("email")}
+                  />
+                  {errors.email && (
+                    <p className="mt-1 text-xs text-error-500">
+                      {errors.email.message}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <Label>
@@ -102,7 +142,11 @@ export default function SignInForm() {
                   <div className="relative">
                     <Input
                       type={showPassword ? "text" : "password"}
+                      autoComplete="current-password"
                       placeholder="Enter your password"
+                      error={!!errors.password}
+                      className="pr-12"
+                      {...register("password")}
                     />
                     <span
                       onClick={() => setShowPassword(!showPassword)}
@@ -115,6 +159,11 @@ export default function SignInForm() {
                       )}
                     </span>
                   </div>
+                  {errors.password && (
+                    <p className="mt-1 text-xs text-error-500">
+                      {errors.password.message}
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -124,15 +173,20 @@ export default function SignInForm() {
                     </span>
                   </div>
                   <Link
-                    href="/reset-password"
+                    href="/forgot-password"
                     className="text-sm text-brand-500 hover:text-brand-600 dark:text-brand-400"
                   >
                     Forgot password?
                   </Link>
                 </div>
                 <div>
-                  <Button className="w-full" size="sm" type="submit">
-                    Sign in
+                  <Button
+                    className="w-full"
+                    size="sm"
+                    type="submit"
+                    disabled={loginMutation.isPending}
+                  >
+                    {loginMutation.isPending ? "Signing in…" : "Sign in"}
                   </Button>
                 </div>
               </div>

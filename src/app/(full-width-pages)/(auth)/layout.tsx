@@ -21,15 +21,15 @@ export default function AuthLayout({
               {/* <!-- ===== Common Grid Shape Start ===== --> */}
               <GridShape />
               <div className="flex flex-col items-center max-w-xs">
-                <Link href="/" className="mb-4 flex flex-col items-center gap-2">
+                <Link href="/" className="mb-4 flex items-center gap-2">
                   <Image
-                    width={231}
-                    height={48}
-                    src="./images/logo/auth-logo.svg"
+                    width={80}
+                    height={80}
+                    src="./images/logo/logo.svg"
                     alt="ETIP"
                   />
-                  <p className="text-center text-xl font-semibold text-white dark:text-white/90">
-                    ETIP
+                  <p className="text-center text-4xl font-semibold text-white dark:text-white/90">
+                    eTIP
                   </p>
                 </Link>
                 <p className="text-center text-gray-400 dark:text-white/60">

@@ -2,7 +2,13 @@ import { AUTH_SESSION_COOKIE } from "@/lib/auth-constants";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-const AUTH_PAGES = ["/signin", "/signup"];
+const AUTH_PAGES = [
+  "/signin",
+  "/signup",
+  "/verify-email",
+  "/forgot-password",
+  "/reset-password",
+];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

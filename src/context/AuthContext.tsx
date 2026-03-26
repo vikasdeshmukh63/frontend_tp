@@ -2,9 +2,11 @@
 
 import {
   clearSessionCookie,
-  hasSessionCookie,
   setSessionCookie,
 } from "@/lib/auth-session";
+import { useAuthStore } from "@/stores/auth-store";
+import type { PublicUser } from "@/types/auth";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import React, {
   createContext,
@@ -12,11 +14,13 @@ import React, {
   useContext,
   useEffect,
   useMemo,
-  useState,
 } from "react";
 
 type AuthContextValue = {
   isAuthenticated: boolean;
+  user: PublicUser | null;
+  token: string | null;
+  /** Legacy no-op; real sign-in uses `useLoginMutation`. */
   login: () => void;
   logout: () => void;
 };
@@ -24,28 +28,44 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const token = useAuthStore((s) => s.token);
+  const user = useAuthStore((s) => s.user);
+  const clearSession = useAuthStore((s) => s.clearSession);
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
-    setIsAuthenticated(hasSessionCookie());
-  }, []);
+    if (token) setSessionCookie();
+    else clearSessionCookie();
+  }, [token]);
 
-  const login = useCallback(() => {
-    setSessionCookie();
-    setIsAuthenticated(true);
+  useEffect(() => {
+    return useAuthStore.persist.onFinishHydration(() => {
+      if (useAuthStore.getState().token) setSessionCookie();
+    });
   }, []);
 
   const logout = useCallback(() => {
+    clearSession();
     clearSessionCookie();
-    setIsAuthenticated(false);
+    queryClient.removeQueries({ queryKey: ["auth"] });
     router.push("/signin");
     router.refresh();
-  }, [router]);
+  }, [clearSession, queryClient, router]);
+
+  const login = useCallback(() => {
+    setSessionCookie();
+  }, []);
 
   const value = useMemo(
-    () => ({ isAuthenticated, login, logout }),
-    [isAuthenticated, login, logout]
+    () => ({
+      isAuthenticated: !!token && !!user,
+      user,
+      token,
+      login,
+      logout,
+    }),
+    [token, user, login, logout],
   );
 
   return (

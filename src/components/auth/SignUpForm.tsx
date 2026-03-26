@@ -1,25 +1,59 @@
 "use client";
+
 import Checkbox from "@/components/form/input/Checkbox";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
-import { useAuth } from "@/context/AuthContext";
+import { useRegisterMutation } from "@/features/auth/hooks/use-auth-hooks";
+import {
+  signUpSchema,
+  type SignUpFormValues,
+} from "@/features/auth/schemas/auth.schemas";
+import { ApiError } from "@/lib/api/client";
+import { yupResolver } from "@hookform/resolvers/yup";
 import { EyeCloseIcon, EyeIcon } from "@/icons";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import React, { useState } from "react";
+import { useForm, type Resolver } from "react-hook-form";
 
 export default function SignUpForm() {
-  const { login } = useAuth();
-  const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
-  const [isChecked, setIsChecked] = useState(false);
+  const registerMutation = useRegisterMutation();
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    login();
-    router.push("/");
-    router.refresh();
-  }
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    setError,
+    formState: { errors },
+  } = useForm<SignUpFormValues>({
+    resolver: yupResolver(signUpSchema) as Resolver<SignUpFormValues>,
+    defaultValues: {
+      role: "candidate",
+      email: "",
+      password: "",
+      firstName: "",
+      lastName: "",
+      companyName: "",
+      recruiterTitle: "",
+      termsAccepted: false,
+    },
+  });
+
+  const role = watch("role");
+  const termsAccepted = watch("termsAccepted");
+
+  const onSubmit = (data: SignUpFormValues) => {
+    registerMutation.mutate(data, {
+      onError: (err) => {
+        if (err instanceof ApiError) {
+          setError("root", { message: err.message });
+        } else {
+          setError("root", { message: "Something went wrong. Try again." });
+        }
+      },
+    });
+  };
 
   return (
     <div className="flex flex-col flex-1 lg:w-1/2 w-full overflow-y-auto no-scrollbar">
@@ -30,12 +64,15 @@ export default function SignUpForm() {
               Sign Up
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Enter your email and password to sign up!
+              Create an account as a candidate or recruiter.
             </p>
           </div>
           <div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-5">
-              <button className="inline-flex items-center justify-center gap-3 py-3 text-sm font-normal text-gray-700 transition-colors bg-gray-100 rounded-lg px-7 hover:bg-gray-200 hover:text-gray-800 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10">
+              <button
+                type="button"
+                className="inline-flex items-center justify-center gap-3 py-3 text-sm font-normal text-gray-700 transition-colors bg-gray-100 rounded-lg px-7 hover:bg-gray-200 hover:text-gray-800 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10"
+              >
                 <svg
                   width="20"
                   height="20"
@@ -62,7 +99,10 @@ export default function SignUpForm() {
                 </svg>
                 Sign up with Google
               </button>
-              <button className="inline-flex items-center justify-center gap-3 py-3 text-sm font-normal text-gray-700 transition-colors bg-gray-100 rounded-lg px-7 hover:bg-gray-200 hover:text-gray-800 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10">
+              <button
+                type="button"
+                className="inline-flex items-center justify-center gap-3 py-3 text-sm font-normal text-gray-700 transition-colors bg-gray-100 rounded-lg px-7 hover:bg-gray-200 hover:text-gray-800 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10"
+              >
                 <svg
                   width="21"
                   className="fill-current"
@@ -86,55 +126,168 @@ export default function SignUpForm() {
                 </span>
               </div>
             </div>
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={handleSubmit(onSubmit)} noValidate>
               <div className="space-y-5">
-                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                  {/* <!-- First Name --> */}
-                  <div className="sm:col-span-1">
-                    <Label>
-                      First Name<span className="text-error-500">*</span>
-                    </Label>
-                    <Input
-                      type="text"
-                      id="fname"
-                      name="fname"
-                      placeholder="Enter your first name"
-                    />
+                {errors.root && (
+                  <p className="text-sm text-error-500" role="alert">
+                    {errors.root.message}
+                  </p>
+                )}
+
+                <div>
+                  <Label>I am a <span className="text-error-500">*</span></Label>
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setValue("role", "candidate", { shouldValidate: true })
+                      }
+                      className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                        role === "candidate"
+                          ? "border-brand-500 bg-brand-500/10 text-brand-600 dark:text-brand-400"
+                          : "border-gray-300 dark:border-gray-700"
+                      }`}
+                    >
+                      Candidate
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setValue("role", "recruiter", { shouldValidate: true })
+                      }
+                      className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                        role === "recruiter"
+                          ? "border-brand-500 bg-brand-500/10 text-brand-600 dark:text-brand-400"
+                          : "border-gray-300 dark:border-gray-700"
+                      }`}
+                    >
+                      Recruiter
+                    </button>
                   </div>
-                  {/* <!-- Last Name --> */}
-                  <div className="sm:col-span-1">
-                    <Label>
-                      Last Name<span className="text-error-500">*</span>
-                    </Label>
-                    <Input
-                      type="text"
-                      id="lname"
-                      name="lname"
-                      placeholder="Enter your last name"
-                    />
-                  </div>
+                  <input type="hidden" {...register("role")} />
                 </div>
-                {/* <!-- Email --> */}
+
+                {role === "candidate" && (
+                  <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                    <div className="sm:col-span-1">
+                      <Label>
+                        First Name<span className="text-error-500">*</span>
+                      </Label>
+                      <Input
+                        type="text"
+                        autoComplete="given-name"
+                        placeholder="First name"
+                        error={!!errors.firstName}
+                        {...register("firstName")}
+                      />
+                      {errors.firstName && (
+                        <p className="mt-1 text-xs text-error-500">
+                          {errors.firstName.message}
+                        </p>
+                      )}
+                    </div>
+                    <div className="sm:col-span-1">
+                      <Label>
+                        Last Name<span className="text-error-500">*</span>
+                      </Label>
+                      <Input
+                        type="text"
+                        autoComplete="family-name"
+                        placeholder="Last name"
+                        error={!!errors.lastName}
+                        {...register("lastName")}
+                      />
+                      {errors.lastName && (
+                        <p className="mt-1 text-xs text-error-500">
+                          {errors.lastName.message}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {role === "recruiter" && (
+                  <>
+                    <div>
+                      <Label>
+                        Company name<span className="text-error-500">*</span>
+                      </Label>
+                      <Input
+                        type="text"
+                        placeholder="Your company"
+                        error={!!errors.companyName}
+                        {...register("companyName")}
+                      />
+                      {errors.companyName && (
+                        <p className="mt-1 text-xs text-error-500">
+                          {errors.companyName.message}
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <Label>
+                        Your title<span className="text-error-500">*</span>
+                      </Label>
+                      <Input
+                        type="text"
+                        placeholder="e.g. Talent Acquisition Lead"
+                        error={!!errors.recruiterTitle}
+                        {...register("recruiterTitle")}
+                      />
+                      {errors.recruiterTitle && (
+                        <p className="mt-1 text-xs text-error-500">
+                          {errors.recruiterTitle.message}
+                        </p>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                      <div>
+                        <Label>First name (optional)</Label>
+                        <Input
+                          type="text"
+                          {...register("firstName")}
+                        />
+                      </div>
+                      <div>
+                        <Label>Last name (optional)</Label>
+                        <Input
+                          type="text"
+                          {...register("lastName")}
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
+
                 <div>
                   <Label>
                     Email<span className="text-error-500">*</span>
                   </Label>
                   <Input
                     type="email"
-                    id="email"
-                    name="email"
+                    autoComplete="email"
                     placeholder="Enter your email"
+                    error={!!errors.email}
+                    {...register("email")}
                   />
+                  {errors.email && (
+                    <p className="mt-1 text-xs text-error-500">
+                      {errors.email.message}
+                    </p>
+                  )}
                 </div>
-                {/* <!-- Password --> */}
                 <div>
                   <Label>
                     Password<span className="text-error-500">*</span>
                   </Label>
                   <div className="relative">
                     <Input
-                      placeholder="Enter your password"
+                      placeholder="At least 8 characters"
                       type={showPassword ? "text" : "password"}
+                      autoComplete="new-password"
+                      error={!!errors.password}
+                      className="pr-12"
+                      {...register("password")}
                     />
                     <span
                       onClick={() => setShowPassword(!showPassword)}
@@ -147,13 +300,19 @@ export default function SignUpForm() {
                       )}
                     </span>
                   </div>
+                  {errors.password && (
+                    <p className="mt-1 text-xs text-error-500">
+                      {errors.password.message}
+                    </p>
+                  )}
                 </div>
-                {/* <!-- Checkbox --> */}
                 <div className="flex items-center gap-3">
                   <Checkbox
                     className="w-5 h-5"
-                    checked={isChecked}
-                    onChange={setIsChecked}
+                    checked={termsAccepted}
+                    onChange={(c) =>
+                      setValue("termsAccepted", c, { shouldValidate: true })
+                    }
                   />
                   <p className="inline-block font-normal text-gray-500 dark:text-gray-400">
                     By creating an account means you agree to the{" "}
@@ -166,13 +325,18 @@ export default function SignUpForm() {
                     </span>
                   </p>
                 </div>
-                {/* <!-- Button --> */}
+                {errors.termsAccepted && (
+                  <p className="text-xs text-error-500">
+                    {errors.termsAccepted.message}
+                  </p>
+                )}
                 <div>
                   <button
                     type="submit"
-                    className="flex items-center justify-center w-full px-4 py-3 text-sm font-medium text-white transition rounded-lg bg-brand-500 shadow-theme-xs hover:bg-brand-600"
+                    disabled={registerMutation.isPending}
+                    className="flex items-center justify-center w-full px-4 py-3 text-sm font-medium text-white transition rounded-lg bg-brand-500 shadow-theme-xs hover:bg-brand-600 disabled:opacity-60"
                   >
-                    Sign Up
+                    {registerMutation.isPending ? "Creating account…" : "Sign Up"}
                   </button>
                 </div>
               </div>
