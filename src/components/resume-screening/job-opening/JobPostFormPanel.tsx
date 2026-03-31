@@ -375,21 +375,28 @@ export default function JobPostFormPanel({
             ) : null}
           </div>
 
-          {draft.workArrangement === "hybrid" ? (
+          {draft.workArrangement === "hybrid" || draft.workArrangement === "on-site" ? (
             <div className="ml-0 space-y-4 border-l-2 border-brand-200 pl-4 dark:border-brand-800">
-              <div className="space-y-2">
-                <Label className={labelBrand}>Policy</Label>
-                <Input
-                  placeholder="Ex. 3 days/week WFH"
-                  value={draft.hybridPolicy}
-                  onChange={(e) => patch({ hybridPolicy: e.target.value })}
-                  className={inputFull}
-                />
-              </div>
+              {draft.workArrangement === "hybrid" ? (
+                <div className="space-y-2">
+                  <Label className={labelBrand}>Policy</Label>
+                  <Input
+                    placeholder="Ex. 3 days/week WFH"
+                    value={draft.hybridPolicy}
+                    onChange={(e) => patch({ hybridPolicy: e.target.value })}
+                    className={inputFull}
+                  />
+                </div>
+              ) : null}
               <div className="space-y-2">
                 <Label className={labelBrand}>
                   Location(s) <span className="text-destructive">*</span>
                 </Label>
+                <p className="text-xs text-muted-foreground">
+                  {draft.workArrangement === "on-site"
+                    ? "Add office location(s) where this role is based."
+                    : "Add location(s) where the role can be hybrid / office-based."}
+                </p>
                 <div className="mb-2 flex flex-wrap gap-2">
                   <span className="inline-flex items-center rounded-md border border-border bg-muted px-2 py-1 text-xs">
                     India

@@ -15,6 +15,50 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
+/** Lines that look like "• item", "- item", or "1. item" (common in mocks / pasted JDs). */
+const PLAIN_TEXT_BULLET_LINE =
+  /^(?:[•\-\*·]|\u2022|\u00B7)\s+(.+)$|^\d+\.\s+(.+)$/;
+
+/**
+ * If every non-empty line starts with a bullet/number marker, return TipTap-friendly
+ * `<ul><li>...</li></ul>` so list toolbar state matches visible bullets.
+ */
+function tryPlainTextLinesToBulletListHtml(text: string): string | null {
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length < 1) return null;
+  const items: string[] = [];
+  for (const line of lines) {
+    const m = line.match(PLAIN_TEXT_BULLET_LINE);
+    if (!m) return null;
+    const body = (m[1] ?? m[2] ?? "").trim();
+    if (!body) return null;
+    items.push(body);
+  }
+  const inner = items.map((x) => `<li>${escapeHtml(x)}</li>`).join("");
+  return `<ul>${inner}</ul>`;
+}
+
+/**
+ * Build `<ul><li>...</li></ul>` from API string arrays (split embedded newlines per item).
+ */
+export function bulletListHtmlFromLines(items: string[]): string {
+  const flat: string[] = [];
+  for (const raw of items) {
+    for (const part of raw.split(/\r?\n/)) {
+      let t = part.trim();
+      if (!t) continue;
+      const m = t.match(PLAIN_TEXT_BULLET_LINE);
+      if (m) {
+        t = (m[1] ?? m[2] ?? "").trim();
+      }
+      if (t) flat.push(t);
+    }
+  }
+  if (!flat.length) return "";
+  const inner = flat.map((x) => `<li>${escapeHtml(x)}</li>`).join("");
+  return `<ul>${inner}</ul>`;
+}
+
 /** Safe HTML for preview (TipTap output). */
 export function sanitizeRichHtml(html: string): string {
   return DOMPurify.sanitize(html, {
@@ -50,6 +94,8 @@ export function normalizePlainTextToHtml(value: string): string {
   const v = value.trim();
   if (!v) return "<p></p>";
   if (looksLikeHtml(value)) return value;
+  const asList = tryPlainTextLinesToBulletListHtml(v);
+  if (asList) return asList;
   return v
     .split(/\n\n+/)
     .map((block) => {

@@ -1,15 +1,27 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import type { JobPostDraft } from "@/types/job-post-draft";
-import Link from "next/link";
-import React, { useState } from "react";
+import { useJobOpeningDraftStore } from "@/stores/job-opening-draft-store";
+import { useRouter } from "next/navigation";
+import React from "react";
 import {
   validateJobPostStep1,
   type JobPostStep1FieldErrors,
 } from "./job-post-step1-validation";
+import ApplicationFormPreview from "./ApplicationFormPreview";
+import ApplicationFormStepPanel from "./ApplicationFormStepPanel";
+import CandidatePipelineStep from "./CandidatePipelineStep";
 import JobPostFormPanel from "./JobPostFormPanel";
 import JobPostLivePreview from "./JobPostLivePreview";
+import { getDefaultApplicationForm, type ApplicationFormState } from "@/types/application-form";
+import {
+  getDefaultCandidatePipeline,
+  type CandidatePipelineState,
+} from "@/types/candidate-pipeline";
+import { createJobOpening } from "@/features/job-opening/api/create-job-opening";
+import { mapJobDraftToCreatePayload } from "@/features/job-opening/utils/map-draft-to-create-payload";
+import { ApiError } from "@/lib/api/client";
+import { useAuthStore } from "@/stores/auth-store";
 
 const STEPS = [
   { id: 1, title: "Job post", description: "Details candidates see" },
@@ -17,35 +29,120 @@ const STEPS = [
   { id: 3, title: "Candidate pipeline", description: "Different stages and automations" },
 ] as const;
 
-type JobOpeningWizardProps = {
-  draft: JobPostDraft;
-  onChange: (next: JobPostDraft) => void;
-};
+function stepNavTitle(stepId: number, step1Done: boolean, step2Done: boolean): string | undefined {
+  if (stepId === 1) return undefined;
+  if (stepId === 2 && !step1Done) {
+    return "Complete step 1 and click Next to unlock this step";
+  }
+  if (stepId === 3 && !step2Done) {
+    return "Complete step 2 and click Next to unlock this step";
+  }
+  return undefined;
+}
 
-export default function JobOpeningWizard({ draft, onChange }: JobOpeningWizardProps) {
-  const [step, setStep] = useState(1);
-  /** Steps 2–3 stay locked until step 1 passes validation via Next. */
-  const [step1Completed, setStep1Completed] = useState(false);
-  const [step1Error, setStep1Error] = useState<string | null>(null);
-  const [step1FieldErrors, setStep1FieldErrors] = useState<JobPostStep1FieldErrors>(
+/** Whether the user may open this step from the stepper (sequential unlock; can go back to earlier completed steps). */
+function canNavigateToStep(
+  targetId: number,
+  step1Completed: boolean,
+  step2Completed: boolean,
+): boolean {
+  if (targetId === 1) return true;
+  if (targetId === 2) return step1Completed;
+  if (targetId === 3) return step2Completed;
+  return false;
+}
+
+export default function JobOpeningWizard() {
+  const router = useRouter();
+  const draft = useJobOpeningDraftStore((s) => s.draft);
+  const setDraft = useJobOpeningDraftStore((s) => s.setDraft);
+  const patchDraft = useJobOpeningDraftStore((s) => s.patchDraft);
+  const step = useJobOpeningDraftStore((s) => s.step);
+  const setStep = useJobOpeningDraftStore((s) => s.setStep);
+  const step1Completed = useJobOpeningDraftStore((s) => s.step1Completed);
+  const setStep1Completed = useJobOpeningDraftStore((s) => s.setStep1Completed);
+  const step2Completed = useJobOpeningDraftStore((s) => s.step2Completed);
+  const setStep2Completed = useJobOpeningDraftStore((s) => s.setStep2Completed);
+  const resetToUpload = useJobOpeningDraftStore((s) => s.resetToUpload);
+
+  const handleCancel = () => {
+    resetToUpload();
+    useJobOpeningDraftStore.persist.clearStorage();
+    router.push("/resume-screening/job-openings");
+  };
+
+  const [step1Error, setStep1Error] = React.useState<string | null>(null);
+  const [step3Error, setStep3Error] = React.useState<string | null>(null);
+  const [isCreating, setIsCreating] = React.useState(false);
+  const [step1FieldErrors, setStep1FieldErrors] = React.useState<JobPostStep1FieldErrors>(
     {},
   );
 
-  const handleDraftChange = (next: JobPostDraft) => {
-    onChange(next);
+  /** Heal inconsistent persisted step vs. completion flags (e.g. after migrations). */
+  React.useEffect(() => {
+    if (step >= 2 && !step1Completed) {
+      setStep(1);
+      return;
+    }
+    if (step >= 3 && !step2Completed) {
+      setStep(2);
+    }
+  }, [step, step1Completed, step2Completed, setStep]);
+
+  /** Older persisted drafts may omit applicationForm — persist defaults when opening step 2. */
+  React.useEffect(() => {
+    if (step !== 2) return;
+    const d = useJobOpeningDraftStore.getState().draft;
+    if (d.applicationForm) return;
+    setDraft({ ...d, applicationForm: getDefaultApplicationForm() });
+  }, [step, setDraft]);
+
+  /** Older drafts may omit candidatePipeline — defaults when opening step 3. */
+  React.useEffect(() => {
+    if (step !== 3) return;
+    const d = useJobOpeningDraftStore.getState().draft;
+    if (d.candidatePipeline) return;
+    patchDraft({ candidatePipeline: getDefaultCandidatePipeline() });
+  }, [step, patchDraft]);
+
+  const handleDraftChange = (next: typeof draft) => {
+    setDraft(next);
     setStep1FieldErrors({});
     setStep1Error(null);
   };
 
+  const applicationForm = draft.applicationForm ?? getDefaultApplicationForm();
+  const candidatePipeline: CandidatePipelineState =
+    draft.candidatePipeline ?? getDefaultCandidatePipeline();
+
+  const handleApplicationFormChange = React.useCallback(
+    (nextApp: ApplicationFormState) => {
+      setDraft({
+        ...useJobOpeningDraftStore.getState().draft,
+        applicationForm: nextApp,
+      });
+    },
+    [setDraft],
+  );
+
+  const handlePipelineChange = React.useCallback(
+    (next: CandidatePipelineState) => {
+      patchDraft({ candidatePipeline: next });
+    },
+    [patchDraft],
+  );
+
   const goToStep = (id: number) => {
-    if (id >= 2 && !step1Completed) return;
+    if (!canNavigateToStep(id, step1Completed, step2Completed)) return;
     setStep1Error(null);
+    setStep3Error(null);
     setStep1FieldErrors({});
     setStep(id);
   };
 
-  const handleNext = () => {
+  const handleNextOrCreate = async () => {
     setStep1Error(null);
+    setStep3Error(null);
     if (step === 1) {
       const result = validateJobPostStep1(draft);
       if (!result.ok) {
@@ -64,8 +161,47 @@ export default function JobOpeningWizard({ draft, onChange }: JobOpeningWizardPr
       return;
     }
     if (step === 2) {
+      setStep2Completed(true);
       setStep(3);
       return;
+    }
+    if (step === 3) {
+      const pl =
+        useJobOpeningDraftStore.getState().draft.candidatePipeline ??
+        getDefaultCandidatePipeline();
+      for (const s of pl.middleStages) {
+        if (!String(s.stageName ?? "").trim()) {
+          setStep3Error("Each pipeline stage must have a stage name.");
+          return;
+        }
+      }
+
+      const token = useAuthStore.getState().token;
+      if (!token) {
+        setStep3Error("Please sign in to create a job opening.");
+        return;
+      }
+
+      const fullDraft = useJobOpeningDraftStore.getState().draft;
+      const payload = mapJobDraftToCreatePayload(fullDraft, pl);
+
+      setIsCreating(true);
+      try {
+        await createJobOpening({ data: payload }, token);
+        resetToUpload();
+        useJobOpeningDraftStore.persist.clearStorage();
+        router.push("/resume-screening/job-openings");
+      } catch (e) {
+        const msg =
+          e instanceof ApiError
+            ? e.message
+            : e instanceof Error
+              ? e.message
+              : "Could not create the job opening. Try again.";
+        setStep3Error(msg);
+      } finally {
+        setIsCreating(false);
+      }
     }
   };
 
@@ -78,18 +214,15 @@ export default function JobOpeningWizard({ draft, onChange }: JobOpeningWizardPr
               {STEPS.map((s) => {
                 const active = step === s.id;
                 const done = step > s.id;
-                const locked = s.id >= 2 && !step1Completed;
+                const locked = !canNavigateToStep(s.id, step1Completed, step2Completed);
+                const navTitle = stepNavTitle(s.id, step1Completed, step2Completed);
                 return (
                   <li key={s.id} className="min-w-0 flex-1 sm:flex-initial sm:max-w-[220px]">
                     <button
                       type="button"
                       disabled={locked}
                       aria-disabled={locked}
-                      title={
-                        locked
-                          ? "Complete and continue from step 1 to unlock this step"
-                          : undefined
-                      }
+                      title={navTitle}
                       onClick={() => goToStep(s.id)}
                       className={`w-full text-left transition ${
                         locked
@@ -135,22 +268,27 @@ export default function JobOpeningWizard({ draft, onChange }: JobOpeningWizardPr
           </nav>
 
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-            <Button variant="outline" size="default" asChild>
-              <Link href="/resume-screening/job-openings">Cancel</Link>
+            <Button
+              type="button"
+              variant="outline"
+              size="default"
+              onClick={handleCancel}
+            >
+              Cancel
             </Button>
             <Button
               type="button"
-              disabled={step >= 3}
-              onClick={handleNext}
+              disabled={isCreating}
+              onClick={() => void handleNextOrCreate()}
               className="bg-brand-500 hover:bg-brand-600 dark:bg-brand-500 dark:hover:bg-brand-600"
             >
-              {step >= 3 ? "Finish" : "Next"}
+              {step === 3 ? (isCreating ? "Creating…" : "Create Job Opening") : "Next"}
             </Button>
           </div>
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col pt-5">
+      <div className="flex flex-1 flex-col pt-5 pb-6">
         {step1Error && step === 1 ? (
           <div
             className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive dark:bg-destructive/20"
@@ -160,40 +298,50 @@ export default function JobOpeningWizard({ draft, onChange }: JobOpeningWizardPr
           </div>
         ) : null}
 
+        {step3Error && step === 3 ? (
+          <div
+            className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive dark:bg-destructive/20"
+            role="alert"
+          >
+            {step3Error}
+          </div>
+        ) : null}
+
         {step === 1 ? (
-          <div className="grid min-h-0 flex-1 grid-cols-1 gap-5 overflow-hidden lg:grid-cols-2 lg:gap-8">
-            <div className="min-h-0 overflow-y-auto rounded-xl border border-gray-100 bg-gray-50/50 p-1 dark:border-gray-800 dark:bg-white/[0.02]">
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:gap-8">
+            <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4 dark:border-gray-800 dark:bg-white/[0.02]">
               <JobPostFormPanel
                 draft={draft}
                 onChange={handleDraftChange}
                 fieldErrors={step1FieldErrors}
               />
             </div>
-            <div className="min-h-0 overflow-y-auto rounded-xl border border-gray-100 bg-gray-50/50 p-1 dark:border-gray-800 dark:bg-white/[0.02]">
+            <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4 dark:border-gray-800 dark:bg-white/[0.02]">
               <JobPostLivePreview draft={draft} />
             </div>
           </div>
         ) : null}
 
         {step === 2 ? (
-          <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/30 px-6 py-20 text-center dark:border-gray-700 dark:bg-gray-900/20">
-            <div>
-              <p className="text-lg font-semibold text-gray-900 dark:text-white">Application form</p>
-              <p className="mt-2 max-w-md text-sm text-gray-500 dark:text-gray-400">
-                Configure fields candidates must fill out. API integration coming next.
-              </p>
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:gap-8">
+            <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4 dark:border-gray-800 dark:bg-white/[0.02]">
+              <ApplicationFormStepPanel
+                applicationForm={applicationForm}
+                onChange={handleApplicationFormChange}
+              />
+            </div>
+            <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4 dark:border-gray-800 dark:bg-white/[0.02]">
+              <ApplicationFormPreview applicationForm={applicationForm} />
             </div>
           </div>
         ) : null}
 
         {step === 3 ? (
-          <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/30 px-6 py-20 text-center dark:border-gray-700 dark:bg-gray-900/20">
-            <div>
-              <p className="text-lg font-semibold text-gray-900 dark:text-white">Candidate pipeline</p>
-              <p className="mt-2 max-w-md text-sm text-gray-500 dark:text-gray-400">
-                Define stages and automations. API integration coming next.
-              </p>
-            </div>
+          <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4 dark:border-gray-800 dark:bg-white/[0.02]">
+            <CandidatePipelineStep
+              pipeline={candidatePipeline}
+              onChange={handlePipelineChange}
+            />
           </div>
         ) : null}
       </div>

@@ -1,3 +1,5 @@
+import { getDefaultCandidatePipeline } from "@/types/candidate-pipeline";
+import { getDefaultApplicationForm } from "@/types/application-form";
 import type { JobPostDraft } from "@/types/job-post-draft";
 
 /** Empty draft for “start from scratch” (user fills step 1 manually). */
@@ -28,6 +30,8 @@ export function getEmptyJobPostDraft(): JobPostDraft {
     employmentStartDate: "",
     keyCallout: "",
     mapsUrl: "",
+    applicationForm: getDefaultApplicationForm(),
+    candidatePipeline: getDefaultCandidatePipeline(),
   };
 }
 
@@ -80,5 +84,7 @@ export function getMockExtractedJobPost(): JobPostDraft {
     employmentStartDate: "",
     keyCallout: "Do not contact us via LinkedIn or email. Just apply here",
     mapsUrl: "https://maps.google.com/...",
+    applicationForm: getDefaultApplicationForm(),
+    candidatePipeline: getDefaultCandidatePipeline(),
   };
 }

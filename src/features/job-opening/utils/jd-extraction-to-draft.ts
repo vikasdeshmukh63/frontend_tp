@@ -1,4 +1,6 @@
-import { normalizePlainTextToHtml } from "@/lib/rich-text-html";
+import { bulletListHtmlFromLines, normalizePlainTextToHtml } from "@/lib/rich-text-html";
+import { getDefaultCandidatePipeline } from "@/types/candidate-pipeline";
+import { getDefaultApplicationForm } from "@/types/application-form";
 import type { JobPostDraft, SkillTag, WorkArrangement } from "@/types/job-post-draft";
 import type { JdExtractionResponse } from "@/types/jd-extraction";
 
@@ -80,25 +82,6 @@ function normalizeEmploymentType(raw: string | null | undefined): string {
   return map[lower] ?? raw.trim();
 }
 
-function listToRichBullets(items: string[]): string {
-  if (!items.length) return "";
-  const lines = items
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map((s) => s.replace(/^[-•*]\s*/, ""));
-  if (!lines.length) return "";
-  const body = lines.map((x) => `<li>${escapeHtml(x)}</li>`).join("");
-  return `<ul>${body}</ul>`;
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
 function summaryToHtml(text: string | null | undefined): string {
   if (!text?.trim()) return "";
   const t = text.trim();
@@ -117,13 +100,25 @@ function parseDateHint(raw: string | null | undefined): string {
 export function jdExtractionToJobPostDraft(
   jd: JdExtractionResponse,
 ): JobPostDraft {
-  const years = jd.experience_years ?? null;
+  const minFromApi =
+    jd.experience_min_years != null && !Number.isNaN(jd.experience_min_years)
+      ? jd.experience_min_years
+      : jd.experience_years != null && !Number.isNaN(jd.experience_years)
+        ? jd.experience_years
+        : null;
+  const maxFromApi =
+    jd.experience_max_years != null && !Number.isNaN(jd.experience_max_years)
+      ? jd.experience_max_years
+      : null;
+
   const expMin =
-    years != null && !Number.isNaN(years) ? String(Math.max(0, Math.floor(years))) : "";
-  const expMax =
-    years != null && !Number.isNaN(years)
-      ? String(Math.max(Math.floor(years), Math.floor(years) + 2))
-      : "";
+    minFromApi != null ? String(Math.max(0, Math.floor(minFromApi))) : "";
+  let expMax = "";
+  if (maxFromApi != null) {
+    expMax = String(Math.max(Math.floor(minFromApi ?? maxFromApi), Math.floor(maxFromApi)));
+  } else if (minFromApi != null) {
+    expMax = String(Math.max(Math.floor(minFromApi), Math.floor(minFromApi) + 2));
+  }
 
   const skills: SkillTag[] = (jd.skills ?? []).map((s) => ({
     id: newSkillId(),
@@ -132,13 +127,22 @@ export function jdExtractionToJobPostDraft(
   }));
 
   const locations: string[] = [];
-  if (jd.location?.trim()) {
-    locations.push(jd.location.trim());
+  const fromList = (jd.locations ?? [])
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (fromList.length) {
+    locations.push(...fromList);
+  } else if (jd.location?.trim()) {
+    jd.location
+      .split(/[,;]|(?:\s+and\s+)/i)
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .forEach((s) => locations.push(s));
   }
 
-  const responsibilities = listToRichBullets(jd.responsibilities ?? []);
-  const perks = listToRichBullets(jd.perks_and_benefits ?? []);
-  const additional = listToRichBullets(jd.additional_requirements ?? []);
+  const responsibilities = bulletListHtmlFromLines(jd.responsibilities ?? []);
+  const perks = bulletListHtmlFromLines(jd.perks_and_benefits ?? []);
+  const additional = bulletListHtmlFromLines(jd.additional_requirements ?? []);
 
   const salaryMin =
     jd.salary_min != null && !Number.isNaN(jd.salary_min)
@@ -164,7 +168,7 @@ export function jdExtractionToJobPostDraft(
     experienceMin: expMin,
     experienceMax: expMax,
     employmentType: normalizeEmploymentType(jd.employment_type),
-    salaryCurrency: "INR",
+    salaryCurrency: (jd.salary_currency?.trim() || "INR").toUpperCase(),
     salaryMin,
     salaryMax,
     salaryFrequency: mapSalaryFrequency(jd.salary_range_type),
@@ -183,5 +187,7 @@ export function jdExtractionToJobPostDraft(
     employmentStartDate: parseDateHint(jd.employment_start_date),
     keyCallout: jd.key_callout?.trim() ?? "",
     mapsUrl: jd.google_maps_url_of_office_location?.trim() ?? "",
+    applicationForm: getDefaultApplicationForm(),
+    candidatePipeline: getDefaultCandidatePipeline(),
   };
 }

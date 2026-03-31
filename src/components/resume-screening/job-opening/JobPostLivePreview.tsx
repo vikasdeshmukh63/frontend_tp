@@ -55,7 +55,7 @@ export default function JobPostLivePreview({ draft }: JobPostLivePreviewProps) {
   const expLabel = `${draft.experienceMin}-${draft.experienceMax} years experience`;
 
   return (
-    <div className="space-y-6 pr-1">
+    <div className="space-y-6">
       <div>
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Live Preview</h3>
         <p className="text-sm text-gray-500 dark:text-gray-400">

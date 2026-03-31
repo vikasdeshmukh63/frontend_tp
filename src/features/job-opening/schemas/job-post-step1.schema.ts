@@ -86,9 +86,9 @@ export const jobPostStep1Schema = yup.object({
   locations: yup
     .array(yup.string().required())
     .when("workArrangement", {
-      is: "hybrid",
+      is: (v: string) => v === "hybrid" || v === "on-site",
       then: (schema) =>
-        schema.min(1, "Add at least one work location for hybrid roles"),
+        schema.min(1, "Add at least one work location"),
       otherwise: (schema) => schema.default([]),
     }),
 

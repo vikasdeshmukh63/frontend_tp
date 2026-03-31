@@ -1,3 +1,6 @@
+import type { CandidatePipelineState } from "@/types/candidate-pipeline";
+import type { ApplicationFormState } from "@/types/application-form";
+
 export type WorkArrangement = "on-site" | "hybrid" | "remote";
 
 export type SkillTag = {
@@ -32,4 +35,8 @@ export type JobPostDraft = {
   employmentStartDate: string;
   keyCallout: string;
   mapsUrl: string;
+  /** Step 2 — application fields candidates fill (enabled / mandatory). */
+  applicationForm: ApplicationFormState;
+  /** Step 3 — hiring pipeline stages between Applied and terminal outcomes. */
+  candidatePipeline: CandidatePipelineState;
 };
