@@ -18,7 +18,7 @@ export type PipelineMiddleStage = {
   /** Shown to candidates / recruiters (required). */
   stageName: string;
   internalName: string;
-  /** `null` = no assignee */
+  /** Auth service user id of the assigned recruiter (`null` = none). Same company as job creator. */
   assigneeId: string | null;
 };
 

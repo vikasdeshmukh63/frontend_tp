@@ -11,7 +11,8 @@ import type { CandidatePipelineState, PipelineMiddleStage } from "@/types/candid
 import { createMiddleStage } from "@/types/candidate-pipeline";
 import {
   APPLIED_BADGE_CLASS,
-  PIPELINE_ASSIGNEE_OPTIONS,
+  PIPELINE_ASSIGNEE_NONE,
+  type PipelineAssigneeOption,
   PIPELINE_TEMPLATE_OPTIONS,
   PIPELINE_TERMINALS,
   getTemplateMeta,
@@ -22,6 +23,12 @@ import React, { useCallback, useRef, useState } from "react";
 type CandidatePipelineStepProps = {
   pipeline: CandidatePipelineState;
   onChange: (next: CandidatePipelineState) => void;
+  /** Same-company recruiters + “No assignee”; defaults until parent loads. */
+  assigneeOptions?: PipelineAssigneeOption[];
+  assigneeOptionsLoading?: boolean;
+  assigneeOptionsError?: string | null;
+  /** Shown under “Assignee” — same `companyName` as your profile (auth). */
+  assigneeCompanyHint?: string | null;
 };
 
 function reorderStages(
@@ -39,7 +46,12 @@ function reorderStages(
 export default function CandidatePipelineStep({
   pipeline,
   onChange,
+  assigneeOptions: assigneeOptionsProp,
+  assigneeOptionsLoading = false,
+  assigneeOptionsError = null,
+  assigneeCompanyHint = null,
 }: CandidatePipelineStepProps) {
+  const assigneeOptions = assigneeOptionsProp ?? [PIPELINE_ASSIGNEE_NONE];
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
@@ -300,11 +312,23 @@ export default function CandidatePipelineStep({
                             <p className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
                               Assignee
                             </p>
+                            {assigneeCompanyHint ? (
+                              <p className="px-2 pb-1 text-[11px] leading-snug text-muted-foreground">
+                                Recruiters at {assigneeCompanyHint}
+                              </p>
+                            ) : null}
+                            {assigneeOptionsError ? (
+                              <p className="px-2 pb-2 text-xs text-destructive">{assigneeOptionsError}</p>
+                            ) : null}
+                            {assigneeOptionsLoading ? (
+                              <p className="px-2 pb-2 text-xs text-muted-foreground">Loading teammates…</p>
+                            ) : null}
                             <div className="flex flex-col gap-0.5">
-                              {PIPELINE_ASSIGNEE_OPTIONS.map((u) => (
+                              {assigneeOptions.map((u) => (
                                 <button
                                   key={u.id}
                                   type="button"
+                                  disabled={assigneeOptionsLoading}
                                   onClick={() =>
                                     updateStage(stage.id, {
                                       assigneeId: u.id === "__none__" ? null : u.id,

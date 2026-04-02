@@ -85,7 +85,7 @@ export default function JobPostFormPanel({
         ? crypto.randomUUID()
         : `skill-${Date.now()}`;
     patch({
-      skills: [...draft.skills, { id, name: t, mandatory: false }],
+      skills: [...draft.skills, { id, name: t, mandatory: true }],
     });
   };
 
@@ -484,7 +484,7 @@ export default function JobPostFormPanel({
               <p className="text-xs text-destructive">{fe.skills}</p>
             ) : null}
             <p className="text-xs text-muted-foreground">
-              Click the star icon to mark the skill as mandatory. Else, it is good-to-have.
+              New skills start as mandatory. Use the star to mark a skill as good-to-have instead.
             </p>
             <div className="flex flex-wrap gap-2">
               {draft.skills.map((s) => (
@@ -575,7 +575,8 @@ export default function JobPostFormPanel({
                 <SelectContent>
                   <SelectItem value="Draft">Draft</SelectItem>
                   <SelectItem value="Published">Published</SelectItem>
-                  <SelectItem value="Closed">Closed</SelectItem>
+                  <SelectItem value="Archived">Archived</SelectItem>
+                  <SelectItem value="Hidden">Hidden</SelectItem>
                 </SelectContent>
               </Select>
             </div>

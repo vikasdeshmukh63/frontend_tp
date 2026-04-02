@@ -50,7 +50,8 @@ export default function SimpleRichTextField({
       attributes: {
         class: cn(
           "tiptap w-full px-3 py-2 text-sm text-foreground outline-none",
-          "[&_p]:my-1 [&_ul]:my-2 [&_ol]:my-2 [&_li]:my-0.5",
+          /* vertical rhythm; list markers come from globals.css `.tiptap ul|ol` */
+          "[&_p]:my-1 [&_ul]:my-2 [&_ol]:my-2",
         ),
       },
     },

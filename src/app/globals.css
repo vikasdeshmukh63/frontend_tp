@@ -177,6 +177,38 @@
   If we ever want to remove these styles, we need to add an explicit border
   color utility to any element that depends on these defaults.
 */
+/*
+  TipTap / ProseMirror editors use `.tiptap` on the content root. Tailwind preflight
+  removes list markers (`list-style: none` on ul/ol), so bullets and numbers must
+  be restored here or list formatting looks “on” in the toolbar but invisible in the editor.
+*/
+.tiptap ul {
+  list-style-type: disc;
+  padding-left: 1.5rem;
+}
+.tiptap ol {
+  list-style-type: decimal;
+  padding-left: 1.5rem;
+}
+.tiptap li {
+  display: list-item;
+}
+.tiptap ul ul {
+  list-style-type: circle;
+}
+.tiptap ul ul ul {
+  list-style-type: square;
+}
+.tiptap li p {
+  margin: 0.25em 0;
+}
+.tiptap li > p:first-child {
+  margin-top: 0;
+}
+.tiptap li > p:last-child {
+  margin-bottom: 0;
+}
+
 @layer base {
   *,
   ::after,

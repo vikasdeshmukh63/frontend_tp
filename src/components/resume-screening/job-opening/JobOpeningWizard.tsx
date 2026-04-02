@@ -11,6 +11,7 @@ import {
 import ApplicationFormPreview from "./ApplicationFormPreview";
 import ApplicationFormStepPanel from "./ApplicationFormStepPanel";
 import CandidatePipelineStep from "./CandidatePipelineStep";
+import { buildPipelineAssigneeOptions } from "./candidate-pipeline-constants";
 import JobPostFormPanel from "./JobPostFormPanel";
 import JobPostLivePreview from "./JobPostLivePreview";
 import { getDefaultApplicationForm, type ApplicationFormState } from "@/types/application-form";
@@ -18,10 +19,13 @@ import {
   getDefaultCandidatePipeline,
   type CandidatePipelineState,
 } from "@/types/candidate-pipeline";
+import { listCompanyRecruiters } from "@/features/auth/api/list-company-recruiters";
 import { createJobOpening } from "@/features/job-opening/api/create-job-opening";
+import { updateJobOpening } from "@/features/job-opening/api/update-job-opening";
 import { mapJobDraftToCreatePayload } from "@/features/job-opening/utils/map-draft-to-create-payload";
 import { ApiError } from "@/lib/api/client";
 import { useAuthStore } from "@/stores/auth-store";
+import type { PublicUser } from "@/types/auth";
 
 const STEPS = [
   { id: 1, title: "Job post", description: "Details candidates see" },
@@ -64,6 +68,7 @@ export default function JobOpeningWizard() {
   const step2Completed = useJobOpeningDraftStore((s) => s.step2Completed);
   const setStep2Completed = useJobOpeningDraftStore((s) => s.setStep2Completed);
   const resetToUpload = useJobOpeningDraftStore((s) => s.resetToUpload);
+  const editingJobOpeningId = useJobOpeningDraftStore((s) => s.editingJobOpeningId);
 
   const handleCancel = () => {
     resetToUpload();
@@ -104,6 +109,64 @@ export default function JobOpeningWizard() {
     if (d.candidatePipeline) return;
     patchDraft({ candidatePipeline: getDefaultCandidatePipeline() });
   }, [step, patchDraft]);
+
+  const [companyRecruiters, setCompanyRecruiters] = React.useState<PublicUser[] | null>(null);
+  const [recruitersError, setRecruitersError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (step !== 3) return;
+    const token = useAuthStore.getState().token;
+    if (!token) {
+      setCompanyRecruiters([]);
+      setRecruitersError(null);
+      return;
+    }
+    let cancelled = false;
+    setCompanyRecruiters(null);
+    setRecruitersError(null);
+    listCompanyRecruiters(token)
+      .then((r) => {
+        if (!cancelled) setCompanyRecruiters(r.recruiters);
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          setCompanyRecruiters([]);
+          setRecruitersError(
+            e instanceof ApiError ? e.message : "Could not load teammates.",
+          );
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [step]);
+
+  /** Drop assignees that are not in the loaded same-company list (e.g. old mock ids). */
+  React.useEffect(() => {
+    if (step !== 3 || companyRecruiters === null) return;
+    const validIds = new Set(companyRecruiters.map((u) => String(u.id)));
+    const pl =
+      useJobOpeningDraftStore.getState().draft.candidatePipeline ??
+      getDefaultCandidatePipeline();
+    let changed = false;
+    const nextMiddle = pl.middleStages.map((s) => {
+      if (s.assigneeId !== null && !validIds.has(s.assigneeId)) {
+        changed = true;
+        return { ...s, assigneeId: null };
+      }
+      return s;
+    });
+    if (changed) {
+      patchDraft({ candidatePipeline: { middleStages: nextMiddle } });
+    }
+  }, [step, companyRecruiters, patchDraft]);
+
+  const assigneeOptions = React.useMemo(
+    () => buildPipelineAssigneeOptions(companyRecruiters ?? []),
+    [companyRecruiters],
+  );
+  const assigneeOptionsLoading = step === 3 && companyRecruiters === null;
+  const assigneeCompanyHint = useAuthStore((s) => s.user?.companyName?.trim()) || null;
 
   const handleDraftChange = (next: typeof draft) => {
     setDraft(next);
@@ -187,7 +250,12 @@ export default function JobOpeningWizard() {
 
       setIsCreating(true);
       try {
-        await createJobOpening({ data: payload }, token);
+        const editId = useJobOpeningDraftStore.getState().editingJobOpeningId;
+        if (editId != null) {
+          await updateJobOpening(editId, { data: payload }, token);
+        } else {
+          await createJobOpening({ data: payload }, token);
+        }
         resetToUpload();
         useJobOpeningDraftStore.persist.clearStorage();
         router.push("/resume-screening/job-openings");
@@ -282,7 +350,15 @@ export default function JobOpeningWizard() {
               onClick={() => void handleNextOrCreate()}
               className="bg-brand-500 hover:bg-brand-600 dark:bg-brand-500 dark:hover:bg-brand-600"
             >
-              {step === 3 ? (isCreating ? "Creating…" : "Create Job Opening") : "Next"}
+              {step === 3
+                ? isCreating
+                  ? editingJobOpeningId != null
+                    ? "Saving…"
+                    : "Creating…"
+                  : editingJobOpeningId != null
+                    ? "Save changes"
+                    : "Create Job Opening"
+                : "Next"}
             </Button>
           </div>
         </div>
@@ -317,7 +393,10 @@ export default function JobOpeningWizard() {
               />
             </div>
             <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4 dark:border-gray-800 dark:bg-white/[0.02]">
-              <JobPostLivePreview draft={draft} />
+              <JobPostLivePreview
+                draft={draft}
+                shareJobOpeningId={editingJobOpeningId ?? undefined}
+              />
             </div>
           </div>
         ) : null}
@@ -341,6 +420,10 @@ export default function JobOpeningWizard() {
             <CandidatePipelineStep
               pipeline={candidatePipeline}
               onChange={handlePipelineChange}
+              assigneeOptions={assigneeOptions}
+              assigneeOptionsLoading={assigneeOptionsLoading}
+              assigneeOptionsError={recruitersError}
+              assigneeCompanyHint={assigneeCompanyHint}
             />
           </div>
         ) : null}

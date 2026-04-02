@@ -1,38 +1,28 @@
-import { getRecruiterApiBaseUrl } from "@/config/env";
-import { ApiError } from "@/lib/api/client";
+import { recruiterFetch } from "@/lib/api/recruiter-client";
+import type { PublicUser } from "@/types/auth";
 
 export type CreateJobOpeningResponse = {
   id: number;
   data: unknown;
+  job_title?: string | null;
+  role_id?: number | null;
+  recruiter_user_id?: number;
+  creator?: PublicUser | null;
+  created_at?: string;
+  updated_at?: string;
 };
 
 /**
- * Persists a job opening via the recruiter API (`recruiter_service`).
+ * Persists a job opening via **recruiter_service** only (`/api/job-openings`).
+ * Uses `recruiterFetch`, not the auth `apiFetch`.
  */
 export async function createJobOpening(
   body: { data: Record<string, unknown> },
   token: string,
 ): Promise<CreateJobOpeningResponse> {
-  const base = getRecruiterApiBaseUrl();
-  const url = `${base}/api/job-openings`;
-  const headers = new Headers({
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
+  return recruiterFetch<CreateJobOpeningResponse>("/api/job-openings", {
+    method: "POST",
+    body: JSON.stringify(body),
+    token,
   });
-
-  const res = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
-  const text = await res.text();
-  let data: unknown = null;
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    data = { error: text || res.statusText };
-  }
-
-  if (!res.ok) {
-    const b = data as { error?: string; code?: string };
-    throw new ApiError(b.error ?? res.statusText, res.status, b.code);
-  }
-
-  return data as CreateJobOpeningResponse;
 }

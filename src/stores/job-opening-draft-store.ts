@@ -34,6 +34,8 @@ type JobOpeningDraftState = {
   step1Completed: boolean;
   /** User advanced past step 2 via Next (unlocks step 3). */
   step2Completed: boolean;
+  /** When set, wizard saves via PATCH instead of POST. */
+  editingJobOpeningId: number | null;
   setDraft: (draft: JobPostDraft) => void;
   patchDraft: (partial: Partial<JobPostDraft>) => void;
   setStep: (step: number) => void;
@@ -43,6 +45,8 @@ type JobOpeningDraftState = {
   enterWizard: (draft: JobPostDraft) => void;
   /** Upload screen → empty wizard (Start from scratch). */
   startWizardEmpty: () => void;
+  /** Load existing job for edit (all steps unlocked). */
+  enterEditWizard: (draft: JobPostDraft, jobOpeningId: number) => void;
   /** Back to upload with empty draft (e.g. after finishing or explicit reset). */
   resetToUpload: () => void;
 };
@@ -55,6 +59,7 @@ export const useJobOpeningDraftStore = create<JobOpeningDraftState>()(
       step: 1,
       step1Completed: false,
       step2Completed: false,
+      editingJobOpeningId: null,
 
       setDraft: (draft) => set({ draft }),
 
@@ -76,6 +81,7 @@ export const useJobOpeningDraftStore = create<JobOpeningDraftState>()(
           step: 1,
           step1Completed: false,
           step2Completed: false,
+          editingJobOpeningId: null,
         }),
 
       startWizardEmpty: () =>
@@ -85,6 +91,17 @@ export const useJobOpeningDraftStore = create<JobOpeningDraftState>()(
           step: 1,
           step1Completed: false,
           step2Completed: false,
+          editingJobOpeningId: null,
+        }),
+
+      enterEditWizard: (draft, jobOpeningId) =>
+        set({
+          flowPhase: "wizard",
+          draft,
+          step: 1,
+          step1Completed: true,
+          step2Completed: true,
+          editingJobOpeningId: jobOpeningId,
         }),
 
       resetToUpload: () =>
@@ -94,6 +111,7 @@ export const useJobOpeningDraftStore = create<JobOpeningDraftState>()(
           step: 1,
           step1Completed: false,
           step2Completed: false,
+          editingJobOpeningId: null,
         }),
     }),
     {
@@ -105,14 +123,18 @@ export const useJobOpeningDraftStore = create<JobOpeningDraftState>()(
         step: s.step,
         step1Completed: s.step1Completed,
         step2Completed: s.step2Completed,
+        editingJobOpeningId: s.editingJobOpeningId,
       }),
-      version: 3,
-      migrate: (persistedState: unknown) => {
+      version: 4,
+      migrate: (persistedState: unknown, version: number) => {
         const p = persistedState as Record<string, unknown> | null;
         if (!p || typeof p !== "object") return persistedState;
         let next: Record<string, unknown> = { ...p };
         if (typeof next.step2Completed !== "boolean") {
           next = { ...next, step2Completed: false };
+        }
+        if (version < 4 && next.editingJobOpeningId === undefined) {
+          next = { ...next, editingJobOpeningId: null };
         }
         const draft = next.draft as Record<string, unknown> | undefined;
         if (draft && typeof draft === "object" && !("candidatePipeline" in draft)) {

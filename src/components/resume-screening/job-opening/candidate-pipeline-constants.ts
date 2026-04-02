@@ -1,3 +1,4 @@
+import type { PublicUser } from "@/types/auth";
 import type { PipelineStageTemplate, PipelineTerminalKind } from "@/types/candidate-pipeline";
 import {
   Bot,
@@ -126,9 +127,39 @@ export const PIPELINE_TERMINALS: TerminalMeta[] = [
 export const APPLIED_BADGE_CLASS =
   "border-cyan-200 bg-cyan-50 text-cyan-900 dark:border-cyan-800 dark:bg-cyan-500/15 dark:text-cyan-100";
 
-/** Mock team members for assignee picker (replace with API later). */
-export const PIPELINE_ASSIGNEE_OPTIONS: { id: string; label: string; initials: string }[] = [
-  { id: "__none__", label: "No assignee", initials: "—" },
-  { id: "user-omkar", label: "Omkar Thorat", initials: "OT" },
-  { id: "user-vikas", label: "Vikas Deshmukh", initials: "VD" },
-];
+export type PipelineAssigneeOption = { id: string; label: string; initials: string };
+
+export const PIPELINE_ASSIGNEE_NONE: PipelineAssigneeOption = {
+  id: "__none__",
+  label: "No assignee",
+  initials: "—",
+};
+
+function initialsForUser(u: PublicUser): string {
+  const parts = [u.firstName, u.lastName].filter(
+    (x): x is string => typeof x === "string" && x.trim() !== "",
+  );
+  if (parts.length >= 2) {
+    return `${parts[0]![0]!}${parts[parts.length - 1]![0]!}`.toUpperCase();
+  }
+  if (parts.length === 1) {
+    const p = parts[0]!;
+    return p.length >= 2 ? p.slice(0, 2).toUpperCase() : p.toUpperCase();
+  }
+  const e = u.email ?? "?";
+  return e.slice(0, 2).toUpperCase();
+}
+
+/** Assignee rows for the pipeline UI: “No assignee” plus same-company recruiters (`id` = auth user id). */
+export function buildPipelineAssigneeOptions(recruiters: PublicUser[]): PipelineAssigneeOption[] {
+  return [
+    PIPELINE_ASSIGNEE_NONE,
+    ...recruiters.map((u) => ({
+      id: String(u.id),
+      label:
+        [u.firstName, u.lastName].filter((x) => x && String(x).trim()).join(" ").trim() ||
+        u.email,
+      initials: initialsForUser(u),
+    })),
+  ];
+}

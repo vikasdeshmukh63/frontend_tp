@@ -13,6 +13,7 @@ export type PublicUser = {
   resumeUrl: string | null;
   location: string | null;
   yearsExperience: number | null;
+  companyId: number | null;
   companyName: string | null;
   recruiterTitle: string | null;
   adminDepartment: string | null;

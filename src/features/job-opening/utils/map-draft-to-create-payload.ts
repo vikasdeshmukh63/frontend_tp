@@ -54,6 +54,7 @@ const EMPLOYMENT_API: Record<string, string> = {
   "Part-time": "PART_TIME",
   Contract: "CONTRACT",
   Internship: "INTERNSHIP",
+  Other: "OTHER",
 };
 
 const SALARY_FREQ_API: Record<string, string> = {
@@ -117,7 +118,16 @@ function mapScreeningQuestions(app: ApplicationFormState) {
 }
 
 function parseAvailability(status: string): string {
-  const s = (status ?? "").trim().toUpperCase();
+  const raw = (status ?? "").trim();
+  const ui: Record<string, string> = {
+    Draft: "DRAFT",
+    Published: "ACTIVE",
+    Closed: "CLOSED",
+    Archived: "CLOSED",
+    Hidden: "PAUSED",
+  };
+  if (ui[raw]) return ui[raw];
+  const s = raw.toUpperCase();
   if (s === "ACTIVE" || s === "DRAFT" || s === "CLOSED" || s === "PAUSED") return s;
   return "ACTIVE";
 }
@@ -141,12 +151,23 @@ export function mapJobDraftToCreatePayload(
   const mandatorySkillIds = parseEnvIdList("NEXT_PUBLIC_RECRUITER_DEFAULT_MANDATORY_SKILL_IDS");
   const preferredSkillIds = parseEnvIdList("NEXT_PUBLIC_RECRUITER_DEFAULT_PREFERRED_SKILL_IDS");
 
-  const mandatoryFromDraft = draft.skills.filter((s) => s.mandatory).map((s) => parseInt(s.id, 10));
-  const preferredFromDraft = draft.skills.filter((s) => !s.mandatory).map((s) => parseInt(s.id, 10));
-  const useDraftSkillIds =
-    mandatoryFromDraft.every((n) => Number.isFinite(n)) &&
-    preferredFromDraft.every((n) => Number.isFinite(n)) &&
-    (mandatoryFromDraft.length > 0 || preferredFromDraft.length > 0);
+  /** Backend skill IDs are positive integers; the form may use UUIDs — only send numeric IDs. */
+  function numericSkillIdOrNull(id: string): number | null {
+    const t = String(id ?? "").trim();
+    if (!/^\d+$/.test(t)) return null;
+    const n = Number.parseInt(t, 10);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+
+  const mandatoryFromDraft = draft.skills
+    .filter((s) => s.mandatory)
+    .map((s) => numericSkillIdOrNull(s.id))
+    .filter((n): n is number => n !== null);
+  const preferredFromDraft = draft.skills
+    .filter((s) => !s.mandatory)
+    .map((s) => numericSkillIdOrNull(s.id))
+    .filter((n): n is number => n !== null);
+  const useDraftSkillIds = mandatoryFromDraft.length > 0 || preferredFromDraft.length > 0;
 
   const minYoe = Math.max(0, Number.parseInt(draft.experienceMin, 10) || 0);
   const maxYoe = Math.max(minYoe, Number.parseInt(draft.experienceMax, 10) || minYoe);
@@ -156,12 +177,24 @@ export function mapJobDraftToCreatePayload(
     (draft.employmentType.trim() ? "OTHER" : "OTHER");
   const seniority = SENIORITY_API[draft.seniority] ?? "MID";
 
+  function assigneeRecruiterUserId(id: string | null): number | null {
+    if (id === null || id === "" || id === "__none__") return null;
+    const n = Number.parseInt(id, 10);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+
   const jobOpeningStageConfig: Array<{
     stage_type: string;
     stage_name: string;
     internal_name: string | null;
+    assignee_recruiter_user_id: number | null;
   }> = [
-    { stage_type: "APPLIED", stage_name: "Applied", internal_name: null },
+    {
+      stage_type: "APPLIED",
+      stage_name: "Applied",
+      internal_name: null,
+      assignee_recruiter_user_id: null,
+    },
   ];
 
   const jobTitle = draft.jobTitle.trim();
@@ -173,14 +206,35 @@ export function mapJobDraftToCreatePayload(
       stage_type: st,
       stage_name: name,
       internal_name: internalName,
+      assignee_recruiter_user_id: assigneeRecruiterUserId(m.assigneeId),
     });
   }
 
   jobOpeningStageConfig.push(
-    { stage_type: "OFFERED", stage_name: "Offered", internal_name: null },
-    { stage_type: "HIRED", stage_name: "Hired", internal_name: null },
-    { stage_type: "REJECTED", stage_name: "Rejected", internal_name: null },
-    { stage_type: "WITHDRAWN", stage_name: "Withdrawn", internal_name: null },
+    {
+      stage_type: "OFFERED",
+      stage_name: "Offered",
+      internal_name: null,
+      assignee_recruiter_user_id: null,
+    },
+    {
+      stage_type: "HIRED",
+      stage_name: "Hired",
+      internal_name: null,
+      assignee_recruiter_user_id: null,
+    },
+    {
+      stage_type: "REJECTED",
+      stage_name: "Rejected",
+      internal_name: null,
+      assignee_recruiter_user_id: null,
+    },
+    {
+      stage_type: "WITHDRAWN",
+      stage_name: "Withdrawn",
+      internal_name: null,
+      assignee_recruiter_user_id: null,
+    },
   );
 
   const app = draft.applicationForm;
@@ -201,6 +255,12 @@ export function mapJobDraftToCreatePayload(
       hybrid_policy_description: draft.hybridPolicy || "",
       mandatory_skill_ids: useDraftSkillIds ? mandatoryFromDraft : mandatorySkillIds,
       preferred_skill_ids: useDraftSkillIds ? preferredFromDraft : preferredSkillIds,
+      /** Preserves skill names for preview/edit when IDs are UUIDs or missing from the catalog. */
+      skill_tags_snapshot: draft.skills.map((s) => ({
+        id: s.id,
+        name: s.name,
+        mandatory: s.mandatory,
+      })),
       min_salary_times_hundred: salaryToTimesHundred(draft.salaryMin),
       max_salary_times_hundred: Math.max(
         salaryToTimesHundred(draft.salaryMin),

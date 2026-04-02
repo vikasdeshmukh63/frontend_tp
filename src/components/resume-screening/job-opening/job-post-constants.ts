@@ -13,6 +13,7 @@ export const EMPLOYMENT_OPTIONS = [
   "Part-time",
   "Contract",
   "Internship",
+  "Other",
 ] as const;
 
 export const SALARY_FREQUENCY_OPTIONS = ["Yearly", "Monthly", "Hourly"] as const;

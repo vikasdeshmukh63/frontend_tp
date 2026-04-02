@@ -1,5 +1,5 @@
 import PageContentLayout from "@/components/common/PageContentLayout";
-import JobOpeningsEmptyState from "@/components/resume-screening/JobOpeningsEmptyState";
+import JobOpeningsList from "@/components/resume-screening/job-opening/JobOpeningsList";
 import { PlusIcon } from "@/components/ui/plus-icon";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -24,7 +24,7 @@ export default function JobOpeningsPage() {
         </Link>
       }
     >
-      <JobOpeningsEmptyState />
+      <JobOpeningsList />
     </PageContentLayout>
   );
 }
